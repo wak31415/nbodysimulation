@@ -20,13 +20,15 @@ impl State for AppState {
 fn main() {
     let mut window = Window::new("Kiss3d: wasm example");
     let mut c = window.add_cube(1.0, 1.0, 1.0);
-
     c.set_color(1.0, 0.0, 0.0);
+
+    let mut s = window.add_cube(10.0, 10.0, 10.0);
+    s.set_color(0.0, 0.0, 1.0);
 
     window.set_light(Light::StickToCamera);
 
     //let rot = UnitQuaternion::from_axis_angle(&Vector3::y_axis(), 0.001);
-    let trans = Translation3::new(-0.2f32, 0f32, 0f32);
+    let trans = Translation3::new(-0.02f32, 0f32, 0f32);
     let state = AppState { c, trans };
 
     window.render_loop(state)
