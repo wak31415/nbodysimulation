@@ -1,6 +1,8 @@
 use nalgebra::{Vector3};
 use kiss3d::scene::SceneNode;
 
+static G : f64  = 0.00000000006674301515151515;
+
 pub struct Body {
     pub mass: f64,
     pub coordinates: Vector3<f64>,
@@ -8,8 +10,7 @@ pub struct Body {
     pub node: SceneNode
 }
 
-pub fn gravitational_force(A: &Body, B: &Body) -> f64 {
-    let G : f64  = 6.674301515151515 * 10f64.powf(-11f64);
+pub fn gravitational_force(A: &Body, B: &Body) -> Vector3<f64> {
     let f = G*A.mass*B.mass / (A.coordinates - B.coordinates).norm_squared();
-    f
+    f * (A.coordinates - B.coordinates).normalize()
 }
