@@ -6,12 +6,11 @@ use kiss3d::scene::SceneNode;
 use kiss3d::window::{State, Window};
 use std::sync::atomic::AtomicBool;
 use na::{UnitQuaternion, Vector3, Translation3};
-use std::time::SystemTime;
+use std::time::{Duration, Instant};
 
 // mod thread_manager;
 mod physics;
 
-static N_BODIES: u64 = 2;
 static N_THREADS: u32 = 1;
 static FPS: f32 = 30f32;
 
@@ -24,12 +23,17 @@ fn main() {
     let f = physics::gravitational_force(&A, &B);
 
     println!("Force between A and B = {}", f);
-    let draw_interval = 1f32/FPS;
+    let draw_interval = Duration::from_millis(((1f32/FPS)*1000f32) as u64);
+    let mut t_0 = Instant::now();
 
     loop {
         //If its time to draw, then block all the threads
         //at this point and draw
-        window.render();
+        let t_1 = Instant::now();
+        if t_1.duration_since(t_0) > draw_interval {
+            t_0 = t_1;
+            window.render();
+        }
         //update forces
         //compute new positions
     }
