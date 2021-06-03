@@ -20,10 +20,43 @@ impl State for AppState {
     }
 }
 
+fn help() {
+    println!("usage:
+nbodysimulation
+    Run the n-body simulation with the default number of bodies (2)
+nbodysimulation <usize>
+    Run the n-body simulation with <usize> bodies");
+}
+
 fn main() {
+    let args: Vec<String> = std::env::args().collect();
+    let num_objects: usize = match args.len() {
+        1 => {
+            2
+        },
+        2 => {
+            let arg = &args[1];
+            match arg.parse() {
+                Ok(n) => { n },
+                Err(_) => { 
+                    eprintln!("error: second argument not an integer");
+                    help();
+                    return;
+                },
+            }
+        }
+        _ => {
+            // show a help message
+            help();
+            return;
+        }
+    };
+
+    println!("Creating {} objects", num_objects);
+
     let mut window = Window::new("Kiss3d: wasm example");
-    let A = physics::Body {mass: 50f64, coordinates: Vector3::new(0f64, 0f64, 0f64), velocity: Vector3::new(1f64, 1f64, 1f64), node: window.add_cube(1.0, 1.0, 1.0) };
-    let B = physics::Body {mass: 100f64, coordinates: Vector3::new(10f64, 10f64, 10f64), velocity: Vector3::new(-1f64, -1f64, -1f64), node: window.add_cube(1.0, 1.0, 1.0) };
+    let A = physics::Body {mass: 5000f64, coordinates: Vector3::new(0f64, 0f64, 0f64), velocity: Vector3::new(1f64, 1f64, 1f64), node: window.add_cube(1.0, 1.0, 1.0) };
+    let B = physics::Body {mass: 100000f64, coordinates: Vector3::new(2f64, 10f64, 10f64), velocity: Vector3::new(-1f64, -1f64, -1f64), node: window.add_cube(1.0, 1.0, 1.0) };
     let f = physics::gravitational_force(&A, &B);
 
     println!("Force between A and B = {}", f);
