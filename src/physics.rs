@@ -10,6 +10,12 @@ pub struct Body {
     pub node: SceneNode
 }
 
+impl std::fmt::Display for Body {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "mass: {}, coordinates: {}, velocity: {}", self.mass, self.coordinates, self.velocity)
+    }
+}
+
 pub fn gravitational_force(A: &Body, B: &Body) -> Vector3<f64> {
     let f = G*A.mass*B.mass / (A.coordinates - B.coordinates).norm_squared();
     f * (A.coordinates - B.coordinates).normalize()
