@@ -21,7 +21,7 @@ use rand::Rng;
 
 static N_THREADS: usize = 1;
 static FPS: f32 = 30f32;
-static TIME_STEP: f32 = 0.00001;
+static TIME_STEP: f32 = 0.01;
 
 fn help() {
     println!(
@@ -109,14 +109,13 @@ pub fn thread_loop_main(
         for i in 0..block_size {
             let mut net_force = Vector3::new(0f32, 0f32, 0f32);
             for j in 0..n_bodies {
-                net_force += forces[(i, j)];
+                net_force += forces[(j, i)];
             }
             let acceleration = net_force / bodies[i].mass;
             bodies[i].velocity += acceleration * TIME_STEP;
             let v = bodies[i].velocity;
             bodies[i].coordinates += v * TIME_STEP;
         }
-        println!("{:?}", bodies);
         bar.wait();
     }
 }
@@ -151,7 +150,6 @@ fn main() {
         let json_objects: Vec<physics::tmpBody> = serde_json::from_str(&data).unwrap();
         for obj in &json_objects {
             objects.push(obj.convert());
-            println!("{:?}", obj.convert());
         }
     } else {
         for _i in 0..num_objects {
@@ -191,11 +189,14 @@ fn main() {
     let f = physics::gravitational_force(&objects[0], &objects[1]);
     println!("Force between A and B = {}", f);
 
-    let draw_interval = Duration::from_millis(((1f32 / FPS) * 1000f32) as u64);
-    let mut t_0 = Instant::now();
-
     let mut forces: DMatrix<Vector3<f32>> = DMatrix::from_element(objects.len(), objects.len(), Vector3::new(0f32, 0f32, 0f32));
-    let f_worklist = vec![(0usize,1usize)];
+    let mut f_worklist = Vec::<(usize, usize)>::new();
+    for i in 0..objects.len() {
+        for j in (i + 1)..objects.len() {
+            f_worklist.push((i, j));
+        }
+    }
+
     let barrier = Arc::new(Barrier::new(N_THREADS));
 
     thread_loop_main(&mut window, &mut bodies, &mut objects, &mut forces, &f_worklist, barrier);

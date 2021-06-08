@@ -1,12 +1,27 @@
 [
     {
-        "mass": 1.0,
-        "coordinates": [1.0, 1.0, 1.0],
-        "velocity": [0, 0, 0]
+        "mass": 1000.0,
+        "coordinates": [1.0, 0, 0],
+        "velocity": [0, 0.0004, 0]
     },
     {
-        "mass": 10.0,
+        "mass": 1000.0,
+        "coordinates": [-1.0, 0, 0],
+        "velocity": [0, -0.0004, 0]
+    },
+    {
+        "mass": 1000.0,
+        "coordinates": [0, 1.0, 0],
+        "velocity": [-0.0004, 0, 0]
+    },
+    {
+        "mass": 1000.0,
+        "coordinates": [0, -1.0, 0],
+        "velocity": [0.0004, 0, 0]
+    },
+    {
+        "mass": 2000.0,
         "coordinates": [0, 0, 0],
-        "velocity": [1, 1, 1]
+        "velocity": [0, 0, 0]
     }
 ]
