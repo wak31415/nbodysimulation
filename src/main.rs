@@ -178,7 +178,7 @@ fn main() {
 
     let mut bodies: Vec<SceneNode> = Vec::with_capacity(objects.len());
     for obj in &objects {
-        let mut s = window.add_sphere((obj.mass / 5000f32) as f32);
+        let mut s = window.add_sphere((obj.mass.powf(1f32/3f32) / 50f32) as f32);
         s.set_local_transformation(Isometry3::new(
             obj.coordinates,
             Vector3::new(0f32, 0f32, 0f32),
