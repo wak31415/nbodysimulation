@@ -9,7 +9,11 @@ use std::sync::{Arc, Barrier};
 use na::{UnitQuaternion, Vector3, Isometry3, DMatrix};
 use std::time::{Duration, Instant};
 
-mod thread_manager;
+use serde_json::{Result, Value};
+use std::fs::File;
+use std::io::Read;
+
+// mod thread_manager;
 mod physics;
 
 use rand::thread_rng;
@@ -31,7 +35,6 @@ pub fn thread_loop(begin: usize, end: usize, bodies: &mut Vec<physics::Body>, fo
     assert_eq!(bodies.len(), forces.shape().0);
     assert_eq!(forces.shape().0, forces.shape().1);
     let n_bodies = bodies.len();
-    let n_forces = forces.len();
     loop {
         //Update forces
         for f in f_worklist.iter() {
@@ -48,7 +51,8 @@ pub fn thread_loop(begin: usize, end: usize, bodies: &mut Vec<physics::Body>, fo
             }
             let acceleration = net_force/bodies[i].mass;
             bodies[i].velocity += acceleration*TIME_STEP;
-            bodies[i].coordinates += bodies[i].velocity*TIME_STEP;
+            let v = bodies[i].velocity;
+            bodies[i].coordinates += v*TIME_STEP;
         }
         bar.wait();
     }
@@ -62,7 +66,6 @@ pub fn thread_loop_main(window: &mut Window, body_nodes: &mut Vec<SceneNode>, bo
     assert_eq!(forces.shape().0, forces.shape().1);
     let n_bodies = bodies.len();
     let block_size = n_bodies/N_THREADS;
-    let n_forces = forces.len();
     let draw_interval = Duration::from_millis(((1f32/FPS)*1000f32) as u64);
     let mut t_0 = Instant::now();
     loop {
@@ -91,7 +94,8 @@ pub fn thread_loop_main(window: &mut Window, body_nodes: &mut Vec<SceneNode>, bo
             }
             let acceleration = net_force/bodies[i].mass;
             bodies[i].velocity += acceleration*TIME_STEP;
-            bodies[i].coordinates += bodies[i].velocity*TIME_STEP;
+            let v = bodies[i].velocity;
+            bodies[i].coordinates += v*TIME_STEP;
         }
         bar.wait();
     }
@@ -101,7 +105,7 @@ fn main() {
     let args: Vec<String> = std::env::args().collect();
     let num_objects: usize = match args.len() {
         1 => {
-            2
+            0
         },
         2 => {
             let arg = &args[1];
@@ -120,23 +124,31 @@ fn main() {
             return;
         }
     };
+    let mut objects: Vec<physics::Body> = Vec::new();
 
-    println!("Creating {} objects", num_objects);
-
-    let mut objects: Vec<physics::Body> = Vec::with_capacity(num_objects);
-    let mut window = Window::new("Kiss3d: wasm example");
-
-    for _i in 0..num_objects {
-        let coord = Vector3::new(rand::random::<f64>(), rand::random::<f64>(), rand::random::<f64>());
-        let v = Vector3::new(rand::random::<f64>(), rand::random::<f64>(), rand::random::<f64>());
-        let m = 1000f64 + 1000f64*rand::random::<f64>();
-        objects.push(physics::Body { mass: m, coordinates: coord, velocity: v, node: window.add_sphere((m/100000f64) as f32) });
-        match objects.last() {
-            Some(o) => println!("{}", o.coordinates),
-            None => {},
+    if num_objects == 0 {
+        let mut file = File::open("starting_configuration.json").unwrap();
+        let mut data = String::new();
+        file.read_to_string(&mut data).unwrap();
+        let json_objects: Vec<physics::tmpBody> = serde_json::from_str(&data).unwrap();
+    
+        for obj in &json_objects {
+            objects.push(obj.convert());
+            println!("{:?}", obj.convert());
+        }
+    } else {
+        for _i in 0..num_objects {
+            let coord = Vector3::new(rand::random::<f32>(), rand::random::<f32>(), rand::random::<f32>());
+            let v = Vector3::new(rand::random::<f32>(), rand::random::<f32>(), rand::random::<f32>());
+            let m = 1000f32 + 1000f32*rand::random::<f32>();
+            objects.push(physics::Body { mass: m, coordinates: coord, velocity: v });
         }
     }
-    
+
+    println!("Created {} objects", objects.len());
+
+    let mut window = Window::new("Kiss3d: wasm example");
+
     window.set_light(Light::StickToCamera);
 
     let f = physics::gravitational_force(&objects[0], &objects[1]);
