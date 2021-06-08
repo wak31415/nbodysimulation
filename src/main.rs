@@ -53,14 +53,19 @@ fn main() {
     println!("Creating {} objects", num_objects);
 
     let mut objects: Vec<physics::Body> = Vec::with_capacity(num_objects);
-    for i in 0..num_objects {
+    let mut window = Window::new("Kiss3d: wasm example");
+
+    for _i in 0..num_objects {
         let coord = Vector3::new(rand::random::<f64>(), rand::random::<f64>(), rand::random::<f64>());
         let v = Vector3::new(rand::random::<f64>(), rand::random::<f64>(), rand::random::<f64>());
         let m = 1000f64 + 1000f64*rand::random::<f64>();
-        objects[i] = physics::Body { mass: m, coordinates: coord, velocity: v };
+        objects.push(physics::Body { mass: m, coordinates: coord, velocity: v, node: window.add_sphere((m/100000f64) as f32) });
+        match objects.last() {
+            Some(o) => println!("{}", o.coordinates),
+            None => {},
+        }
     }
-
-    let mut window = Window::new("Kiss3d: wasm example");
+    
     window.set_light(Light::StickToCamera);
 
     let f = physics::gravitational_force(&objects[0], &objects[1]);
