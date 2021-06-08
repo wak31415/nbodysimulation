@@ -9,7 +9,7 @@ use std::sync::atomic::AtomicBool;
 use na::{UnitQuaternion, Vector3, Translation3};
 use std::time::{Duration, Instant};
 
-// mod thread_manager;
+mod thread_manager;
 mod physics;
 
 use rand::thread_rng;
