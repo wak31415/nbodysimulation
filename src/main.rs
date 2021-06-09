@@ -22,9 +22,9 @@ mod physics;
 use rand::thread_rng;
 use rand::Rng;
 
-static N_THREADS: usize = 1;
+static N_THREADS: usize = 8;
 static FPS: f32 = 30f32;
-static TIME_STEP: f32 = 0.01;
+static TIME_STEP: f32 = 1.0;
 
 fn help() {
     println!(
@@ -37,9 +37,10 @@ nbodysimulation <usize>
 }
 
 pub fn set(data: &*mut f32, size: usize, i: usize, j: usize, val: Vector3<f32>) {
+    // println!("size: {}, accessing: {}", size, 3*(i + j*size)+2);
     unsafe {
-        for i in 0..3 {
-            *data.offset((3*(i + j*size)+i) as isize) = val[i];
+        for k in 0..3 {
+            *data.offset((3*(i + j*size)+k) as isize) = val[k];
         }
     }
 }
@@ -47,8 +48,8 @@ pub fn set(data: &*mut f32, size: usize, i: usize, j: usize, val: Vector3<f32>) 
 pub fn get(data: &*mut f32, size: usize, i: usize, j: usize) -> Vector3<f32> {
     let mut val: Vector3<f32> = Vector3::new(0f32,0f32,0f32);
     unsafe {
-        for i in 0..3 {
-            val[i] = *data.offset((3*(i + j*size)+i) as isize);
+        for k in 0..3 {
+            val[k] = *data.offset((3*(i + j*size)+k) as isize);
         }
     }
     val
@@ -60,14 +61,14 @@ pub fn thread_loop(
     bodies: *mut physics::Body,
     forces: &*mut f32,
     f_worklist: &Vec<(usize, usize)>,
-    bar: &Arc<Barrier>,
+    bar: Arc<Barrier>,
     n_bodies: usize,
 ) {
     loop {
         //Update forces
         unsafe {
             for f in f_worklist.iter() {
-                let force = physics::gravitational_force(&(*(bodies.offset(f.0 as isize))), &(*(bodies.offset(f.1 as isize))));
+                let force = physics::gravitational_force(&mut (*bodies.offset(f.0 as isize)), &mut (*bodies.offset(f.1 as isize)));
                 set(forces, n_bodies, f.0, f.1, force);
                 set(forces, n_bodies, f.1, f.0, -force);
             }
@@ -75,16 +76,22 @@ pub fn thread_loop(
         bar.wait();
         // Update positions
         for i in begin..end {
+            unsafe {
+                if (*bodies.offset(i as isize)).mass == 0f32 {
+                    continue;
+                }
+            }
             let mut net_force = Vector3::new(0f32, 0f32, 0f32);
             for j in 0..n_bodies {
-                net_force += get(forces, n_bodies, i, j);
+                net_force += get(forces, n_bodies, j, i);
             }
             unsafe {
-                let mut b = bodies.offset(i as isize);
-                let acceleration = net_force / (*b).mass;
-                let v: Vector3<f32> = acceleration * TIME_STEP;
-                (*b).velocity = v;
-                (*b).coordinates += v * TIME_STEP;
+                let acceleration = net_force / (*bodies.offset(i as isize)).mass;
+                let v: Vector3<f32> = (*bodies.offset(i as isize)).velocity + acceleration * TIME_STEP;
+                (*bodies.offset(i as isize)).velocity = v;
+                // println!("Coordinates {} before: {}", i, (*bodies.offset(i as isize)).coordinates);
+                (*bodies.offset(i as isize)).coordinates += v * TIME_STEP;
+                // println!("Coordinates {} after: {}", i, (*bodies.offset(i as isize)).coordinates);
             }
         }
         bar.wait();
@@ -106,6 +113,11 @@ pub fn thread_loop_main(
     let block_size = n_bodies / N_THREADS;
     let draw_interval = Duration::from_millis(((1f32 / FPS) * 1000f32) as u64);
     let mut t_0 = Instant::now();
+    let mut block_1 = Duration::from_secs(0u64);
+    let mut block_2 = Duration::from_secs(0u64);
+    let mut total = Duration::from_secs(0u64);
+    let mut counter : usize = 1;
+
     loop {
         //As you can see, the difference is that only the main thread draws
         //Draw if its time to do so
@@ -118,6 +130,8 @@ pub fn thread_loop_main(
                         (*bodies.offset(i as isize)).coordinates,
                         Vector3::new(0f32, 0f32, 0f32),
                     ));
+                    let r = (*bodies.offset(i as isize)).mass.powf(1f32/3f32) / 300f32;
+                    body_nodes[i].set_local_scale(r, r, r);
                 }
             }
             window.render();
@@ -125,27 +139,48 @@ pub fn thread_loop_main(
         //Update forces
         unsafe {
             for f in f_worklist.iter() {
-                let force = physics::gravitational_force(&(*(bodies.offset(f.0 as isize))), &(*(bodies.offset(f.1 as isize))));
+                let force = physics::gravitational_force(&mut (*bodies.offset(f.0 as isize)), &mut (*bodies.offset(f.1 as isize)));
                 set(forces, n_bodies, f.0, f.1, force);
                 set(forces, n_bodies, f.1, f.0, -force);
             }
         }
         bar.wait();
+        let t_2 = Instant::now();
         // Update positions
         for i in 0..block_size {
+            unsafe {
+                if (*bodies.offset(i as isize)).mass == 0f32 {
+                    continue;
+                }
+            }
             let mut net_force = Vector3::new(0f32, 0f32, 0f32);
             for j in 0..n_bodies {
-                net_force += get(forces, n_bodies, i, j);
+                net_force += get(forces, n_bodies, j, i);
             }
             unsafe {
-                let mut b = bodies.offset(i as isize);
-                let acceleration = net_force / (*b).mass;
-                let v: Vector3<f32> = acceleration * TIME_STEP;
-                (*b).velocity = v;
-                (*b).coordinates += v * TIME_STEP;
+                let acceleration = net_force / (*bodies.offset(i as isize)).mass;
+                let v: Vector3<f32> = (*bodies.offset(i as isize)).velocity + acceleration * TIME_STEP;
+                (*bodies.offset(i as isize)).velocity = v;
+                // println!("Coordinates {} before: {}", i, (*bodies.offset(i as isize)).coordinates);
+                (*bodies.offset(i as isize)).coordinates += v * TIME_STEP;
+                // println!("Coordinates {} after: {}", i, (*bodies.offset(i as isize)).coordinates);
             }
         }
         bar.wait();
+        let t_3 = Instant::now();
+
+        if counter < 100 {
+            block_1 += t_2.duration_since(t_1);
+            block_2 += t_3.duration_since(t_2);
+            total += t_3.duration_since(t_1);
+            counter += 1;
+        } else {
+            println!("Block 1: {} ms \t Block 2: {} ms \t Total: {} ms \t FPS: {}", block_1.as_millis(), block_2.as_millis(), total.as_millis(), 100f32 / total.as_secs_f32());
+            block_1 = Duration::from_millis(0u64);
+            block_2 = Duration::from_millis(0u64);
+            total = Duration::from_millis(0u64);
+            counter = 0;
+        }
     }
 }
 
@@ -183,20 +218,20 @@ fn main() {
     } else {
         for _i in 0..rand_num_obj {
             let coord = Vector3::new(
-                rand::random::<f32>(),
-                rand::random::<f32>(),
-                rand::random::<f32>(),
+                2f32*rand::random::<f32>() - 1f32,
+                2f32*rand::random::<f32>() - 1f32,
+                2f32*rand::random::<f32>() - 1f32,
             );
             let v = Vector3::new(
-                rand::random::<f32>(),
-                rand::random::<f32>(),
-                rand::random::<f32>(),
+                2f32*rand::random::<f32>() - 1f32,
+                2f32*rand::random::<f32>() - 1f32,
+                2f32*rand::random::<f32>() - 1f32,
             );
-            let m = 1000f32 + 1000f32 * rand::random::<f32>();
+            let m = 100f32 + 5000f32 * rand::random::<f32>();
             objects.push(physics::Body {
                 mass: m,
-                coordinates: coord,
-                velocity: v,
+                coordinates: 2f32*coord,
+                velocity: 0.00001f32*v,
             });
         }
     }
@@ -208,7 +243,7 @@ fn main() {
 
     let mut bodies: Vec<SceneNode> = Vec::with_capacity(num_objects);
     for obj in &objects {
-        let mut s = window.add_sphere((obj.mass.powf(1f32/3f32) / 50f32) as f32);
+        let mut s = window.add_sphere((obj.mass.powf(1f32/3f32) / 300f32) as f32);
         s.set_local_transformation(Isometry3::new(
             obj.coordinates,
             Vector3::new(0f32, 0f32, 0f32),
@@ -216,10 +251,10 @@ fn main() {
         bodies.push(s);
     }
 
-    let f = physics::gravitational_force(&objects[0], &objects[1]);
-    println!("Force between A and B = {}", f);
+    // let f = physics::gravitational_force(&objects[0], &objects[1]);
+    // println!("Force between A and B = {}", f);
 
-    let mut forces = vec![0f32; num_objects*num_objects*3];
+    let forces = vec![0f32; num_objects*num_objects*3];
 
     let mut f_worklists: Vec::<Vec::<(usize, usize)>> = Vec::with_capacity(N_THREADS);
     for _ in 0..N_THREADS {
@@ -242,22 +277,22 @@ fn main() {
         let objects = &objects;
         let forces = &forces;
         let f_worklists = &f_worklists;
-        let barrier = &barrier;
 
         for i in 1..N_THREADS {
+            let c = Arc::clone(&barrier);
             if i == N_THREADS - 1 {
                 scope.spawn(move |_| {
-                    thread_loop(begin, num_objects, objects.as_ptr() as *mut physics::Body, &(forces.as_ptr() as *mut f32), &f_worklists[i], barrier, num_objects);
+                    thread_loop(begin, end, objects.as_ptr() as *mut physics::Body, &(forces.as_ptr() as *mut f32), &f_worklists[i], c, num_objects);
                 });
                 break;
             }
             scope.spawn(move |_| {
-                thread_loop(begin, end, objects.as_ptr() as *mut physics::Body, &(forces.as_ptr() as *mut f32), &f_worklists[i], barrier, num_objects);
+                thread_loop(begin, end, objects.as_ptr() as *mut physics::Body, &(forces.as_ptr() as *mut f32), &f_worklists[i], c, num_objects);
             });
             begin += block_size;
             end += block_size;
         }
-    })
-    .unwrap();
-    thread_loop_main(&mut window, &mut bodies, objects.as_ptr() as *mut physics::Body, &(forces.as_ptr() as *mut f32), &f_worklists[0], barrier, num_objects);
+        let c = Arc::clone(&barrier);
+        thread_loop_main(&mut window, &mut bodies, objects.as_ptr() as *mut physics::Body, &(forces.as_ptr() as *mut f32), &f_worklists[0], c, num_objects);
+    }).unwrap();
 }
