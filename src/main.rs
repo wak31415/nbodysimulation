@@ -8,6 +8,7 @@ use kiss3d::window::{State, Window};
 use na::{DMatrix, Isometry3, UnitQuaternion, Vector3};
 use std::sync::{Arc, Barrier};
 use std::time::{Duration, Instant};
+use std::thread;
 
 use serde_json::{Result, Value};
 use std::fs::File;
@@ -190,14 +191,37 @@ fn main() {
     println!("Force between A and B = {}", f);
 
     let mut forces: DMatrix<Vector3<f32>> = DMatrix::from_element(objects.len(), objects.len(), Vector3::new(0f32, 0f32, 0f32));
-    let mut f_worklist = Vec::<(usize, usize)>::new();
+
+    let mut f_worklists: Vec::<Vec::<(usize, usize)>> = Vec::with_capacity(N_THREADS);
+    for _ in 0..N_THREADS {
+        f_worklists.push(Vec::<(usize, usize)>::new());
+    }
+    let mut curr = 0usize;
     for i in 0..objects.len() {
         for j in (i + 1)..objects.len() {
-            f_worklist.push((i, j));
+            f_worklists[curr].push((i, j));
+            curr = (curr + 1) % N_THREADS;
         }
     }
-
     let barrier = Arc::new(Barrier::new(N_THREADS));
 
-    thread_loop_main(&mut window, &mut bodies, &mut objects, &mut forces, &f_worklist, barrier);
+    let block_size: usize = objects.len()/N_THREADS;
+    let mut begin = block_size;
+    let mut end = begin + block_size;
+    let mut threads = vec![];
+    for i in 1..N_THREADS {
+        if i == N_THREADS - 1 {
+            threads.push(thread::spawn(move || {
+                thread_loop(begin, objects.len(), &mut objects, &mut forces, &f_worklists[i], barrier);
+            }));
+            break;
+        }
+        threads.push(thread::spawn(move || {
+            thread_loop(begin, end, &mut objects, &mut forces, &f_worklists[i], barrier);
+        }));
+        begin += block_size;
+        end += block_size;
+    }
+
+    thread_loop_main(&mut window, &mut bodies, &mut objects, &mut forces, &f_worklists[0], barrier);
 }
