@@ -6,7 +6,7 @@ use kiss3d::light::Light;
 use kiss3d::scene::SceneNode;
 use kiss3d::window::{State, Window};
 use na::{DMatrix, Isometry3, UnitQuaternion, Vector3};
-use std::sync::{Arc, Barrier};
+use std::sync::{Arc, Barrier, mpsc, RwLock};
 use std::time::{Duration, Instant};
 use std::thread;
 
@@ -20,9 +20,9 @@ mod physics;
 use rand::thread_rng;
 use rand::Rng;
 
-static N_THREADS: usize = 1;
+static N_THREADS: usize = 7;
 static FPS: f32 = 30f32;
-static TIME_STEP: f32 = 0.01;
+static TIME_STEP: f32 = 1.0;
 
 fn help() {
     println!(
@@ -34,90 +34,128 @@ nbodysimulation <usize>
     );
 }
 
+//Message is either a Force(i,j,v) of magnitude v between objects i and j
+//or Pos(i, nv, np), where nv is the new velocity of object i and np the position
+pub enum Msg {
+    Force(usize, usize, Vector3<f32>),
+    Pos(usize, Vector3<f32>, Vector3<f32>),
+    Stop
+}
+
 pub fn thread_loop(
     begin: usize,
     end: usize,
-    bodies: &mut Vec<physics::Body>,
-    forces: &mut DMatrix<Vector3<f32>>,
-    f_worklist: &Vec<(usize, usize)>,
+    tx: mpsc::Sender<Msg>,
+    bodies: Arc<RwLock<Vec<physics::Body>>>,
+    forces: Arc<RwLock<DMatrix<Vector3<f32>>>>,
+    f_worklist: Vec<(usize, usize)>,
     bar: Arc<Barrier>,
+    n_bodies: usize
 ) {
-    assert_eq!(bodies.len(), forces.shape().0);
-    assert_eq!(forces.shape().0, forces.shape().1);
-    let n_bodies = bodies.len();
+    let mut local_body_copy: Vec<physics::Body> = Vec::with_capacity(n_bodies);
+    println!("Hello from worker!");
+    println!("Begin..end = {}..{}", begin, end);
+    {
+        let bodies_vec = bodies.read().unwrap();
+        for i in 0..n_bodies {
+        local_body_copy.push(physics::Body{mass: bodies_vec[i].mass, coordinates: Vector3::new(0f32,0f32,0f32), velocity: Vector3::new(0f32,0f32,0f32)});
+        }
+    }
     loop {
         //Update forces
-        for f in f_worklist.iter() {
-            let force = physics::gravitational_force(&bodies[f.0], &bodies[f.1]);
-            forces[(f.0, f.1)] = force;
-            forces[(f.1, f.0)] = -force;
-        }
-        bar.wait();
-        // Update positions
-        for i in begin..end {
-            let mut net_force = Vector3::new(0f32, 0f32, 0f32);
-            for j in 0..n_bodies {
-                net_force += forces[(i, j)];
+        {
+            let bodies_vec = bodies.read().unwrap(); //Get read lock on bodies
+            for f in &f_worklist {
+                let force = physics::gravitational_force(&bodies_vec[f.0], &bodies_vec[f.1]);
+                tx.send(Msg::Force(f.0, f.1, force));
             }
-            let acceleration = net_force / bodies[i].mass;
-            bodies[i].velocity += acceleration * TIME_STEP;
-            let v = bodies[i].velocity;
-            bodies[i].coordinates += v * TIME_STEP;
-        }
+            //Copy information from the bodies array before relinquishing lock
+            for i in begin..end {
+                local_body_copy[i].coordinates = bodies_vec[i].coordinates;
+                local_body_copy[i].velocity = bodies_vec[i].velocity;
+            }
+            println!("Worker says b2coors = {}", local_body_copy[2].coordinates);
+            tx.send(Msg::Stop);
+        } //The read lock on bodies is dropped here
+        bar.wait(); //Wait for others to finish computing forces
+        // Update positions
+        {
+            let forces_mat = forces.read().unwrap(); //Get read lock on forces
+            for i in begin..end {
+                let mut net_force = Vector3::new(0f32, 0f32, 0f32);
+                for j in 0..n_bodies {
+                    net_force += forces_mat[(j, i)];
+                }
+                let acceleration = net_force / local_body_copy[i].mass;
+                let nv = local_body_copy[i].velocity + acceleration*TIME_STEP;
+                let np = local_body_copy[i].coordinates + nv*TIME_STEP;
+                tx.send(Msg::Pos(i, nv, np));
+            }
+            tx.send(Msg::Stop);
+        } // forces lock ends here
         bar.wait();
     }
 }
 
 pub fn thread_loop_main(
+    rx: mpsc::Receiver<Msg>,
     window: &mut Window,
     body_nodes: &mut Vec<SceneNode>,
-    bodies: &mut Vec<physics::Body>,
-    forces: &mut DMatrix<Vector3<f32>>,
-    f_worklist: &Vec<(usize, usize)>,
-    bar: Arc<Barrier>,
+    bodies: Arc<RwLock<Vec<physics::Body>>>,
+    forces: Arc<RwLock<DMatrix<Vector3<f32>>>>,
+    n_bodies: usize
 ) {
     // Main thread by convention does the 1st block because we don't want it to
     // Be handling the extra at the tail, since its already drawing alone
     // compute all n^2 forces
-    assert_eq!(bodies.len(), forces.shape().0);
-    assert_eq!(forces.shape().0, forces.shape().1);
-    let n_bodies = bodies.len();
-    let block_size = n_bodies / N_THREADS;
-    let draw_interval = Duration::from_millis(((1f32 / FPS) * 1000f32) as u64);
-    let mut t_0 = Instant::now();
+    //let draw_interval = Duration::from_millis(((1f32 / FPS) * 1000f32) as u64);
+    //let mut t_0 = Instant::now();
+    let mut stage = false; //false = writing forces, true = writing positions
+    let mut stop_count = 0;
+    println!("Hello from main!");
     loop {
-        //As you can see, the difference is that only the main thread draws
-        //Draw if its time to do so
-        let t_1 = Instant::now();
-        if t_1.duration_since(t_0) > draw_interval {
-            t_0 = t_1;
-            for i in 0..n_bodies {
-                body_nodes[i].set_local_transformation(Isometry3::new(
-                    bodies[i].coordinates,
-                    Vector3::new(0f32, 0f32, 0f32),
-                ));
-            }
+        if !stage {
+            let mut force_mat = forces.write().unwrap();
             window.render();
-        }
-        //Update forces
-        for f in f_worklist.iter() {
-            let force = physics::gravitational_force(&bodies[f.0], &bodies[f.1]);
-            forces[(f.0, f.1)] = force;
-            forces[(f.1, f.0)] = -force;
-        }
-        bar.wait();
-        // Update positions
-        for i in 0..block_size {
-            let mut net_force = Vector3::new(0f32, 0f32, 0f32);
-            for j in 0..n_bodies {
-                net_force += forces[(j, i)];
+            loop {
+                if stop_count == N_THREADS {
+                    stop_count = 0;
+                    stage = true;
+                    break;
+                }
+                //Receive force messages until stop_count hits N_THREADS
+                let new_msg = rx.recv().unwrap();
+                match new_msg {
+                    Msg::Force(i, j, f) => { force_mat[(i, j)] = f; force_mat[(j, i)] = -f; },
+                    Msg::Pos(_, _, _) => println!("Oh no, got pos while waiting for force!"),
+                    Msg::Stop => stop_count += 1
+                };
             }
-            let acceleration = net_force / bodies[i].mass;
-            bodies[i].velocity += acceleration * TIME_STEP;
-            let v = bodies[i].velocity;
-            bodies[i].coordinates += v * TIME_STEP;
         }
-        bar.wait();
+        if stage {
+            let mut bodies_vec = bodies.write().unwrap();
+            loop {
+                if stop_count == N_THREADS {
+                    stop_count = 0;
+                    stage = false;
+                    break;
+                }
+                //Receive body updates until stop count hits N_THREADS
+                let new_msg = rx.recv().unwrap();
+                match new_msg {
+                    Msg::Force(_, _, _) => println!("Oh no, got force while waiting for pos"),
+                    Msg::Pos(i, nv, np) => {
+                        bodies_vec[i].velocity = nv;
+                        bodies_vec[i].coordinates = np;
+                    },
+                    Msg::Stop => stop_count += 1
+                }
+            }
+            for i in 0..n_bodies {
+                body_nodes[i].set_local_transformation(Isometry3::new(bodies_vec[i].coordinates, Vector3::<f32>::new(0f32,0f32,0f32)));
+            }
+            println!("Main says b2coors = {}", bodies_vec[2].coordinates);
+        }
     }
 }
 
@@ -155,20 +193,20 @@ fn main() {
     } else {
         for _i in 0..num_objects {
             let coord = Vector3::new(
-                rand::random::<f32>(),
-                rand::random::<f32>(),
-                rand::random::<f32>(),
+                2f32*rand::random::<f32>() - 1f32,
+                2f32*rand::random::<f32>() - 1f32,
+                2f32*rand::random::<f32>() - 1f32,
             );
             let v = Vector3::new(
-                rand::random::<f32>(),
-                rand::random::<f32>(),
-                rand::random::<f32>(),
+                2f32*rand::random::<f32>() - 1f32,
+                2f32*rand::random::<f32>() - 1f32,
+                2f32*rand::random::<f32>() - 1f32,
             );
-            let m = 1000f32 + 1000f32 * rand::random::<f32>();
+            let m = 100f32 + 10000f32 * rand::random::<f32>();
             objects.push(physics::Body {
                 mass: m,
-                coordinates: coord,
-                velocity: v,
+                coordinates: 2f32*coord,
+                velocity: 0.00001f32*v,
             });
         }
     }
@@ -187,9 +225,6 @@ fn main() {
         bodies.push(s);
     }
 
-    let f = physics::gravitational_force(&objects[0], &objects[1]);
-    println!("Force between A and B = {}", f);
-
     let mut forces: DMatrix<Vector3<f32>> = DMatrix::from_element(objects.len(), objects.len(), Vector3::new(0f32, 0f32, 0f32));
 
     let mut f_worklists: Vec::<Vec::<(usize, usize)>> = Vec::with_capacity(N_THREADS);
@@ -203,25 +238,43 @@ fn main() {
             curr = (curr + 1) % N_THREADS;
         }
     }
+
     let barrier = Arc::new(Barrier::new(N_THREADS));
 
+    let (tx, rx) = mpsc::channel::<Msg>();
+
     let block_size: usize = objects.len()/N_THREADS;
-    let mut begin = block_size;
+    let n_objects = objects.len();
+    let mut begin = 0;
     let mut end = begin + block_size;
     let mut threads = vec![];
-    for i in 1..N_THREADS {
+    let mut forces_lock = Arc::new(RwLock::new(forces));
+    let mut objects_lock = Arc::new(RwLock::new(objects));
+    for i in 0..N_THREADS {
+        let ntx = tx.clone();
         if i == N_THREADS - 1 {
+            let worklist = f_worklists[i].clone();
+            let objects_ref = objects_lock.clone();
+            let forces_ref = forces_lock.clone();
+            let bar_ref = barrier.clone();
+            let m_begin = begin.clone();
             threads.push(thread::spawn(move || {
-                thread_loop(begin, objects.len(), &mut objects, &mut forces, &f_worklists[i], barrier);
+                thread_loop(m_begin, n_objects, ntx, objects_ref, forces_ref, worklist, bar_ref, n_objects);
             }));
             break;
         }
+        let worklist = f_worklists[i].clone();
+        let objects_ref = objects_lock.clone();
+        let forces_ref = forces_lock.clone();
+        let bar_ref = barrier.clone();
+        let m_begin = begin.clone();
+        let m_end = end.clone();
         threads.push(thread::spawn(move || {
-            thread_loop(begin, end, &mut objects, &mut forces, &f_worklists[i], barrier);
+            thread_loop(m_begin, m_end, ntx, objects_ref, forces_ref, worklist, bar_ref, n_objects);
         }));
         begin += block_size;
         end += block_size;
     }
 
-    thread_loop_main(&mut window, &mut bodies, &mut objects, &mut forces, &f_worklists[0], barrier);
+    thread_loop_main(rx, &mut window, &mut bodies, objects_lock, forces_lock, n_objects);
 }
