@@ -237,8 +237,10 @@ fn main() {
     }
     let num_objects : usize = objects.len();
 
-    println!("Created {} objects", num_objects);
-    let mut window = Window::new("Kiss3d: wasm example");
+    println!("Created {} objects.", num_objects);
+    println!("Using {} threads.", N_THREADS);
+
+    let mut window = Window::new("Concurrent N-Body Simulation");
     window.set_light(Light::StickToCamera);
 
     let mut bodies: Vec<SceneNode> = Vec::with_capacity(num_objects);

@@ -2,7 +2,7 @@ use nalgebra::{Vector3, DMatrix};
 use serde::{Deserialize, Serialize};
 
 static G : f32  = 0.00000000006674301515151515;
-static DIST_THRESHOLD : f32 = 0.005;
+static DIST_THRESHOLD : f32 = 0.001;
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct tmpBody {
