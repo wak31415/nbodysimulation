@@ -2,6 +2,7 @@ use nalgebra::{Vector3, DMatrix};
 use serde::{Deserialize, Serialize};
 
 static G : f32  = 0.00000000006674301515151515;
+static DIST_THRESHOLD : f32 = 0.001;
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct tmpBody {
@@ -34,6 +35,16 @@ impl std::fmt::Display for Body {
 }
 
 pub fn gravitational_force(A: &Body, B: &Body) -> Vector3<f32> {
-    let f = G*A.mass*B.mass / (A.coordinates - B.coordinates).norm_squared();
+    if A.mass == 0f32 || B.mass == 0f32 { return Vector3::new(0f32, 0f32, 0f32); }
+
+    let dist = (A.coordinates - B.coordinates).norm_squared();
+    if dist < DIST_THRESHOLD {
+        // A.velocity = (A.mass * A.velocity + B.mass * B.velocity) / (A.mass + B.mass);
+        // A.mass += B.mass;
+        // B.mass = 0f32;
+        return Vector3::new(0f32, 0f32, 0f32);
+    }
+
+    let f = G*A.mass*B.mass / dist;
     f * (A.coordinates - B.coordinates).normalize()
 }

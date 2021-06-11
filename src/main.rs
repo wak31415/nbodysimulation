@@ -22,7 +22,7 @@ use rand::Rng;
 
 //Number of WORKER threads: Must be more than 0
 static N_THREADS: usize = 7;
-static FPS: f32 = 1f32;
+static FPS: f32 = 30f32;
 static TIME_STEP: f32 = 1.0;
 
 fn help() {
@@ -55,8 +55,8 @@ pub fn thread_loop(
     n_bodies: usize
 ) {
     let mut local_body_copy: Vec<physics::Body> = Vec::with_capacity(n_bodies);
-    println!("Hello from worker!");
-    println!("Begin..end = {}..{}", begin, end);
+    // println!("Hello from worker!");
+    // println!("Begin..end = {}..{}", begin, end);
     {
         let bodies_vec = bodies.read().unwrap();
         for i in 0..n_bodies {
@@ -111,15 +111,16 @@ pub fn thread_loop_main(
     let mut stage = false; //false = writing forces, true = writing positions
     let mut stop_count = 0;
     let mut t0 = Instant::now();
-    let mut update_count: usize = 0;
     let frame_interval = Duration::from_millis(((1.0/FPS) * 1000f32) as u64);
+    let mut total = Duration::from_secs(0u64);
+    let mut counter : usize = 0;
+
     loop {
+        let t_1 = Instant::now();
         if !stage {
             let mut force_mat = forces.write().unwrap();
             let t1 = Instant::now();
             if t1 - t0 > frame_interval {
-                println!("Updates in this frame: {}", update_count);
-                update_count = 0;
                 window.render();
                 t0 = t1;
             }
@@ -160,14 +161,28 @@ pub fn thread_loop_main(
             for i in 0..n_bodies {
                 body_nodes[i].set_local_transformation(Isometry3::new(bodies_vec[i].coordinates, Vector3::<f32>::new(0f32,0f32,0f32)));
             }
+            // println!("Main says b2coors = {}", bodies_vec[2].coordinates);
         }
-        update_count += 1;
+        let t_3 = Instant::now();
+
+        if counter < 100 {
+            // block_1 += t_2.duration_since(t_1);
+            // block_2 += t_3.duration_since(t_2);
+            total += t_3.duration_since(t_1);
+            counter += 1;
+        } else {
+            println!("Total: {} ms \t FPS: {}", total.as_millis(), 100f32 / total.as_secs_f32());
+            // block_1 = Duration::from_millis(0u64);
+            // block_2 = Duration::from_millis(0u64);
+            total = Duration::from_millis(0u64);
+            counter = 0;
+        }
     }
 }
 
 fn main() {
     let args: Vec<String> = std::env::args().collect();
-    let num_objects: usize = match args.len() {
+    let rand_num_obj: usize = match args.len() {
         1 => 0,
         2 => {
             let arg = &args[1];
@@ -188,7 +203,7 @@ fn main() {
     };
     let mut objects: Vec<physics::Body> = Vec::new();
 
-    if num_objects == 0 {
+    if rand_num_obj == 0 {
         let mut file = File::open("starting_configuration.json").unwrap();
         let mut data = String::new();
         file.read_to_string(&mut data).unwrap();
@@ -197,7 +212,7 @@ fn main() {
             objects.push(obj.convert());
         }
     } else {
-        for _i in 0..num_objects {
+        for _i in 0..rand_num_obj {
             let coord = Vector3::new(
                 2f32*rand::random::<f32>() - 1f32,
                 2f32*rand::random::<f32>() - 1f32,
@@ -208,7 +223,7 @@ fn main() {
                 2f32*rand::random::<f32>() - 1f32,
                 2f32*rand::random::<f32>() - 1f32,
             );
-            let m = 100f32 + 20000f32 * rand::random::<f32>();
+            let m = 100f32 + 5000f32 * rand::random::<f32>();
             objects.push(physics::Body {
                 mass: m,
                 coordinates: 2f32*coord,
@@ -216,12 +231,15 @@ fn main() {
             });
         }
     }
+    let num_objects : usize = objects.len();
 
-    println!("Created {} objects", objects.len());
-    let mut window = Window::new("Kiss3d: wasm example");
+    println!("Created {} objects.", num_objects);
+    println!("Using {} threads.", N_THREADS);
+
+    let mut window = Window::new("Concurrent N-Body Simulation");
     window.set_light(Light::StickToCamera);
 
-    let mut bodies: Vec<SceneNode> = Vec::with_capacity(objects.len());
+    let mut bodies: Vec<SceneNode> = Vec::with_capacity(num_objects);
     for obj in &objects {
         let mut s = window.add_sphere((obj.mass.powf(1f32/3f32) / 50f32) as f32);
         s.set_local_transformation(Isometry3::new(
@@ -231,15 +249,15 @@ fn main() {
         bodies.push(s);
     }
 
-    let forces: DMatrix<Vector3<f32>> = DMatrix::from_element(objects.len(), objects.len(), Vector3::new(0f32, 0f32, 0f32));
+    let forces: DMatrix<Vector3<f32>> = DMatrix::from_element(num_objects, num_objects, Vector3::new(0f32, 0f32, 0f32));
 
     let mut f_worklists: Vec::<Vec::<(usize, usize)>> = Vec::with_capacity(N_THREADS);
     for _ in 0..N_THREADS {
         f_worklists.push(Vec::<(usize, usize)>::new());
     }
     let mut curr = 0usize;
-    for i in 0..objects.len() {
-        for j in (i + 1)..objects.len() {
+    for i in 0..num_objects {
+        for j in (i + 1)..num_objects {
             f_worklists[curr].push((i, j));
             curr = (curr + 1) % N_THREADS;
         }
@@ -249,8 +267,8 @@ fn main() {
 
     let (tx, rx) = mpsc::channel::<Msg>();
 
-    let block_size: usize = objects.len()/N_THREADS;
-    let n_objects = objects.len();
+    let block_size: usize = num_objects/N_THREADS;
+    let n_objects = num_objects;
     let mut begin = 0;
     let mut end = begin + block_size;
     let mut threads = vec![];
