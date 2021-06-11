@@ -119,11 +119,6 @@ pub fn thread_loop_main(
         let t_1 = Instant::now();
         if !stage {
             let mut force_mat = forces.write().unwrap();
-            let t1 = Instant::now();
-            if t1 - t0 > frame_interval {
-                window.render();
-                t0 = t1;
-            }
             loop {
                 if stop_count == N_THREADS {
                     stop_count = 0;
@@ -158,8 +153,13 @@ pub fn thread_loop_main(
                     Msg::Stop => stop_count += 1
                 }
             }
-            for i in 0..n_bodies {
-                body_nodes[i].set_local_transformation(Isometry3::new(bodies_vec[i].coordinates, Vector3::<f32>::new(0f32,0f32,0f32)));
+            let t1 = Instant::now();
+            if t1 - t0 > frame_interval {
+                for i in 0..n_bodies {
+                    body_nodes[i].set_local_transformation(Isometry3::new(bodies_vec[i].coordinates, Vector3::<f32>::new(0f32,0f32,0f32)));
+                }
+                window.render();
+                t0 = t1;
             }
             // println!("Main says b2coors = {}", bodies_vec[2].coordinates);
         }
