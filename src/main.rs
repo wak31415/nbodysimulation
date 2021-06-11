@@ -10,15 +10,12 @@ use std::sync::{Arc, Barrier, mpsc, RwLock};
 use std::time::{Duration, Instant};
 use std::thread;
 
-use serde_json::{Result, Value};
+//use serde_json::{Result, Value};
 use std::fs::File;
 use std::io::Read;
 
 // mod thread_manager;
 mod physics;
-
-use rand::thread_rng;
-use rand::Rng;
 
 //Number of WORKER threads: Must be more than 0
 static N_THREADS: usize = 7;
