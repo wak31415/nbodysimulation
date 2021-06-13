@@ -1,5 +1,7 @@
 # nbodysimulation
 
+![100 Body Simulation](ksnip_20210613-235015.png)
+
 ## Compilation instructions:
 * Install `rustup` from either the distribution's package manager or [the official website](https://rustup.rs/)
 * Download the compiler and the `cargo` package manager for the `stable` version of Rust by running `rustup default stable`
