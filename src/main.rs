@@ -170,14 +170,14 @@ pub fn thread_loop_main(
         let t_3 = Instant::now();
 
         if counter < 100 {
-            block_1 += t_2.duration_since(t_1);
-            block_2 += t_3.duration_since(t_2);
+            // block_1 += t_2.duration_since(t_1);
+            // block_2 += t_3.duration_since(t_2);
             total += t_3.duration_since(t_1);
             counter += 1;
         } else {
-            println!("Block 1: {} ms \t Block 2: {} ms \t Total: {} ms \t FPS: {}", block_1.as_millis(), block_2.as_millis(), total.as_millis(), 100f32 / total.as_secs_f32());
-            block_1 = Duration::from_millis(0u64);
-            block_2 = Duration::from_millis(0u64);
+            println!("{} updates per second", 100f32 / total.as_secs_f32());
+            // block_1 = Duration::from_millis(0u64);
+            // block_2 = Duration::from_millis(0u64);
             total = Duration::from_millis(0u64);
             counter = 0;
         }
