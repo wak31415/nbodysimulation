@@ -188,10 +188,10 @@ impl Octree for Octree_member {
     }
 
     fn add(&mut self, b: &physics::Body) -> () {
-        println!("call add on {:?} ; {:?}", self, b);
+        // println!("call add on {:?} ; {:?}", self, b);
         assert_eq!(self.within_box(&b.coordinates), true);
         let corner = self.fits_in_corner(&b.coordinates);
-        println!("{:?} fits in {:?}", b, corner);
+        // println!("{:?} fits in {:?}", b, corner);
 
         match self {
             Self::Octree_node {
@@ -419,10 +419,10 @@ impl Octree for Octree_member {
 
     fn within_box(&self, p: &Vector3<f32>) -> bool {
         let res = |geometric_center: &Vector3<f32>, side_length: &f32| {
-            println!("individual res:");
-            println!("1: {:?}", within_f32(&geometric_center[0], side_length, &p[0]));
-            println!("1: {:?}", within_f32(&geometric_center[1], side_length, &p[1]));
-            println!("1: {:?}", within_f32(&geometric_center[2], side_length, &p[2]));
+            // println!("individual res:");
+            // println!("1: {:?}", within_f32(&geometric_center[0], side_length, &p[0]));
+            // println!("1: {:?}", within_f32(&geometric_center[1], side_length, &p[1]));
+            // println!("1: {:?}", within_f32(&geometric_center[2], side_length, &p[2]));
 
             return within_f32(&geometric_center[0], side_length, &p[0]) &&
                    within_f32(&geometric_center[1], side_length, &p[1]) &&
@@ -531,16 +531,16 @@ impl Octree for Octree_member {
 }
 
 fn within_f32(c: &f32, sl: &f32, p: &f32) -> bool {
-    println!("within_f32_a: {:?} {:?} {:?}", c, sl, p);
+    // println!("within_f32_a: {:?} {:?} {:?}", c, sl, p);
     let by: &f32 = &(sl/&2.0f32);
-    println!("within_f32_b: {:?} < {:?} <= {:?}", &(c - by), p, &(c + by));
-    println!("within_f32_c: {:?} {:?} {:?}", by, &(c - by) < p, p <= &(c + by));
+    // println!("within_f32_b: {:?} < {:?} <= {:?}", &(c - by), p, &(c + by));
+    // println!("within_f32_c: {:?} {:?} {:?}", by, &(c - by) < p, p <= &(c + by));
     return &(c - by) < p && p <= &(c + by)
 }
 
 fn between_f32(min: &f32, max: &f32, p: &f32) -> bool {
     assert_eq!(min < max, true);
-    println!("between_f32_a: {:?} < {:?} <= {:?}", min, p, max);
+    // println!("between_f32_a: {:?} < {:?} <= {:?}", min, p, max);
     return min < p && p <= max
 }
 
@@ -654,7 +654,7 @@ fn bounding_box_with_center(objects: &Vec<physics::Body>) -> (Vector3<f32>, Vect
     let mut max_z: f32 = objects[0].coordinates[2];
     
     for ref obj in objects {
-        println!("Helper {:?}", obj);
+        // println!("Helper {:?}", obj);
         if obj.coordinates[0] < min_x {
             min_x = obj.coordinates[0];
         }
@@ -720,7 +720,7 @@ pub fn create_octree_sequential(
     objects: &Vec<physics::Body>
 ) -> Box<Octree_member> {
     let (start_bsw, start_tne, start_center) = bounding_box_with_center(objects);
-    println!("Helper says {:?} {:?} {:?}", start_bsw, start_tne, start_center);
+    // println!("Helper says {:?} {:?} {:?}", start_bsw, start_tne, start_center);
     let start_side_len = min_cube_side_len(&start_bsw, &start_tne) + 0.2f32;
     let center = Vector3::new(
         start_bsw[0] - 0.1f32 + start_side_len / 2.0f32,
@@ -734,12 +734,12 @@ pub fn create_octree_sequential(
         side_length: start_side_len
     });
 
-    println!("Starting at basic tree {:?}", root_node);
+    // println!("Starting at basic tree {:?}", root_node);
     
     for ref obj in objects {
-        println!("Adding {:?}", obj);
+        // println!("Adding {:?}", obj);
         root_node.add(&obj);
-        println!("New tree: {:?}", root_node);
+        // println!("New tree: {:?}", root_node);
     }
 
     return root_node;

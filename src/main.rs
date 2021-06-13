@@ -234,71 +234,71 @@ fn main() {
     println!("Octree: {:?}", octree);
 
     println!("Created {} objects.", num_objects);
-    println!("Using {} threads.", N_THREADS);
+    // println!("Using {} threads.", N_THREADS);
 
-    let mut window = Window::new("Concurrent N-Body Simulation");
-    window.set_light(Light::StickToCamera);
+    // let mut window = Window::new("Concurrent N-Body Simulation");
+    // window.set_light(Light::StickToCamera);
 
-    let mut bodies: Vec<SceneNode> = Vec::with_capacity(num_objects);
-    for obj in &objects {
-        let mut s = window.add_sphere((obj.mass.powf(1f32/3f32) / 300f32) as f32);
-        s.set_local_transformation(Isometry3::new(
-            obj.coordinates,
-            Vector3::new(0f32, 0f32, 0f32),
-        ));
-        bodies.push(s);
-    }
+    // let mut bodies: Vec<SceneNode> = Vec::with_capacity(num_objects);
+    // for obj in &objects {
+    //     let mut s = window.add_sphere((obj.mass.powf(1f32/3f32) / 300f32) as f32);
+    //     s.set_local_transformation(Isometry3::new(
+    //         obj.coordinates,
+    //         Vector3::new(0f32, 0f32, 0f32),
+    //     ));
+    //     bodies.push(s);
+    // }
 
-    let forces: DMatrix<Vector3<f32>> = DMatrix::from_element(num_objects, num_objects, Vector3::new(0f32, 0f32, 0f32));
+    // let forces: DMatrix<Vector3<f32>> = DMatrix::from_element(num_objects, num_objects, Vector3::new(0f32, 0f32, 0f32));
 
-    let mut f_worklists: Vec::<Vec::<(usize, usize)>> = Vec::with_capacity(N_THREADS);
-    for _ in 0..N_THREADS {
-        f_worklists.push(Vec::<(usize, usize)>::new());
-    }
-    let mut curr = 0usize;
-    for i in 0..num_objects {
-        for j in (i + 1)..num_objects {
-            f_worklists[curr].push((i, j));
-            curr = (curr + 1) % N_THREADS;
-        }
-    }
+    // let mut f_worklists: Vec::<Vec::<(usize, usize)>> = Vec::with_capacity(N_THREADS);
+    // for _ in 0..N_THREADS {
+    //     f_worklists.push(Vec::<(usize, usize)>::new());
+    // }
+    // let mut curr = 0usize;
+    // for i in 0..num_objects {
+    //     for j in (i + 1)..num_objects {
+    //         f_worklists[curr].push((i, j));
+    //         curr = (curr + 1) % N_THREADS;
+    //     }
+    // }
 
-    let barrier = Arc::new(Barrier::new(N_THREADS));
+    // let barrier = Arc::new(Barrier::new(N_THREADS));
 
-    let (tx, rx) = mpsc::channel::<Msg>();
+    // let (tx, rx) = mpsc::channel::<Msg>();
 
-    let block_size: usize = num_objects/N_THREADS;
-    let n_objects = num_objects;
-    let mut begin = 0;
-    let mut end = begin + block_size;
-    let mut threads = vec![];
-    let forces_lock = Arc::new(RwLock::new(forces));
-    let objects_lock = Arc::new(RwLock::new(objects));
-    for i in 0..N_THREADS {
-        let ntx = tx.clone();
-        if i == N_THREADS - 1 {
-            let worklist = f_worklists[i].clone();
-            let objects_ref = objects_lock.clone();
-            let forces_ref = forces_lock.clone();
-            let bar_ref = barrier.clone();
-            let m_begin = begin.clone();
-            threads.push(thread::spawn(move || {
-                thread_loop(m_begin, n_objects, ntx, objects_ref, forces_ref, worklist, bar_ref, n_objects);
-            }));
-            break;
-        }
-        let worklist = f_worklists[i].clone();
-        let objects_ref = objects_lock.clone();
-        let forces_ref = forces_lock.clone();
-        let bar_ref = barrier.clone();
-        let m_begin = begin.clone();
-        let m_end = end.clone();
-        threads.push(thread::spawn(move || {
-            thread_loop(m_begin, m_end, ntx, objects_ref, forces_ref, worklist, bar_ref, n_objects);
-        }));
-        begin += block_size;
-        end += block_size;
-    }
+    // let block_size: usize = num_objects/N_THREADS;
+    // let n_objects = num_objects;
+    // let mut begin = 0;
+    // let mut end = begin + block_size;
+    // let mut threads = vec![];
+    // let forces_lock = Arc::new(RwLock::new(forces));
+    // let objects_lock = Arc::new(RwLock::new(objects));
+    // for i in 0..N_THREADS {
+    //     let ntx = tx.clone();
+    //     if i == N_THREADS - 1 {
+    //         let worklist = f_worklists[i].clone();
+    //         let objects_ref = objects_lock.clone();
+    //         let forces_ref = forces_lock.clone();
+    //         let bar_ref = barrier.clone();
+    //         let m_begin = begin.clone();
+    //         threads.push(thread::spawn(move || {
+    //             thread_loop(m_begin, n_objects, ntx, objects_ref, forces_ref, worklist, bar_ref, n_objects);
+    //         }));
+    //         break;
+    //     }
+    //     let worklist = f_worklists[i].clone();
+    //     let objects_ref = objects_lock.clone();
+    //     let forces_ref = forces_lock.clone();
+    //     let bar_ref = barrier.clone();
+    //     let m_begin = begin.clone();
+    //     let m_end = end.clone();
+    //     threads.push(thread::spawn(move || {
+    //         thread_loop(m_begin, m_end, ntx, objects_ref, forces_ref, worklist, bar_ref, n_objects);
+    //     }));
+    //     begin += block_size;
+    //     end += block_size;
+    // }
 
-    thread_loop_main(rx, &mut window, &mut bodies, objects_lock, forces_lock, n_objects);
+    // thread_loop_main(rx, &mut window, &mut bodies, objects_lock, forces_lock, n_objects);
 }
