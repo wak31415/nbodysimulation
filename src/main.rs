@@ -18,7 +18,7 @@ use std::io::Read;
 mod physics;
 
 //Number of WORKER threads: Must be more than 0
-static N_THREADS: usize = 7;
+static N_THREADS: usize = 8;
 static FPS: f32 = 30f32;
 static TIME_STEP: f32 = 1.0;
 
@@ -103,7 +103,7 @@ pub fn thread_loop_main(
     // Main thread by convention does the 1st block because we don't want it to
     // Be handling the extra at the tail, since its already drawing alone
     // compute all n^2 forces
-    let draw_interval = Duration::from_millis(((1f32 / FPS) * 1000f32) as u64);
+    // let draw_interval = Duration::from_millis(((1f32 / FPS) * 1000f32) as u64);
     //let mut t_0 = Instant::now();
     let mut stage = false; //false = writing forces, true = writing positions
     let mut stop_count = 0;
@@ -117,7 +117,7 @@ pub fn thread_loop_main(
         if !stage {
             let mut force_mat = forces.write().unwrap();
             loop {
-                if stop_count == N_THREADS {
+                if stop_count == N_THREADS-1 {
                     stop_count = 0;
                     stage = true;
                     break;
@@ -137,7 +137,7 @@ pub fn thread_loop_main(
         if stage {
             let mut bodies_vec = bodies.write().unwrap();
             loop {
-                if stop_count == N_THREADS {
+                if stop_count == N_THREADS-1 {
                     stop_count = 0;
                     stage = false;
                     break;
@@ -203,7 +203,7 @@ fn main() {
         let mut file = File::open("starting_configuration.json").unwrap();
         let mut data = String::new();
         file.read_to_string(&mut data).unwrap();
-        let json_objects: Vec<physics::tmpBody> = serde_json::from_str(&data).unwrap();
+        let json_objects: Vec<physics::TmpBody> = serde_json::from_str(&data).unwrap();
         for obj in &json_objects {
             objects.push(obj.convert());
         }
@@ -247,32 +247,32 @@ fn main() {
 
     let forces: DMatrix<Vector3<f32>> = DMatrix::from_element(num_objects, num_objects, Vector3::new(0f32, 0f32, 0f32));
 
-    let mut f_worklists: Vec::<Vec::<(usize, usize)>> = Vec::with_capacity(N_THREADS);
-    for _ in 0..N_THREADS {
+    let mut f_worklists: Vec::<Vec::<(usize, usize)>> = Vec::with_capacity(N_THREADS-1);
+    for _ in 1..N_THREADS {
         f_worklists.push(Vec::<(usize, usize)>::new());
     }
     let mut curr = 0usize;
     for i in 0..num_objects {
         for j in (i + 1)..num_objects {
             f_worklists[curr].push((i, j));
-            curr = (curr + 1) % N_THREADS;
+            curr = (curr + 1) % (N_THREADS-1);
         }
     }
 
-    let barrier = Arc::new(Barrier::new(N_THREADS));
+    let barrier = Arc::new(Barrier::new(N_THREADS-1));
 
     let (tx, rx) = mpsc::channel::<Msg>();
 
-    let block_size: usize = num_objects/N_THREADS;
+    let block_size: usize = num_objects/(N_THREADS-1);
     let n_objects = num_objects;
     let mut begin = 0;
     let mut end = begin + block_size;
     let mut threads = vec![];
     let forces_lock = Arc::new(RwLock::new(forces));
     let objects_lock = Arc::new(RwLock::new(objects));
-    for i in 0..N_THREADS {
+    for i in 0..N_THREADS-1 {
         let ntx = tx.clone();
-        if i == N_THREADS - 1 {
+        if i == N_THREADS - 2 {
             let worklist = f_worklists[i].clone();
             let objects_ref = objects_lock.clone();
             let forces_ref = forces_lock.clone();

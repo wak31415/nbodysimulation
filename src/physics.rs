@@ -1,11 +1,11 @@
-use nalgebra::{Vector3, DMatrix};
+use nalgebra::Vector3;
 use serde::{Deserialize, Serialize};
 
 static G : f32  = 0.00000000006674301515151515;
 static DIST_THRESHOLD : f32 = 0.001;
 
 #[derive(Serialize, Deserialize, Debug)]
-pub struct tmpBody {
+pub struct TmpBody {
     pub mass: f32,
     pub coordinates: [f32; 3],
     pub velocity: [f32; 3]
@@ -18,7 +18,7 @@ pub struct Body {
     pub velocity: Vector3<f32>
 }
 
-impl tmpBody {
+impl TmpBody {
     pub fn convert(&self) -> Body {
         Body {
             mass: self.mass,
@@ -34,10 +34,10 @@ impl std::fmt::Display for Body {
     }
 }
 
-pub fn gravitational_force(A: &Body, B: &Body) -> Vector3<f32> {
-    if A.mass == 0f32 || B.mass == 0f32 { return Vector3::new(0f32, 0f32, 0f32); }
+pub fn gravitational_force(a: &Body, b: &Body) -> Vector3<f32> {
+    if a.mass == 0f32 || b.mass == 0f32 { return Vector3::new(0f32, 0f32, 0f32); }
 
-    let dist = (A.coordinates - B.coordinates).norm_squared();
+    let dist = (a.coordinates - b.coordinates).norm_squared();
     if dist < DIST_THRESHOLD {
         // A.velocity = (A.mass * A.velocity + B.mass * B.velocity) / (A.mass + B.mass);
         // A.mass += B.mass;
@@ -45,6 +45,6 @@ pub fn gravitational_force(A: &Body, B: &Body) -> Vector3<f32> {
         return Vector3::new(0f32, 0f32, 0f32);
     }
 
-    let f = G*A.mass*B.mass / dist;
-    f * (A.coordinates - B.coordinates).normalize()
+    let f = G*a.mass*b.mass / dist;
+    f * (a.coordinates - b.coordinates).normalize()
 }
