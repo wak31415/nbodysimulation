@@ -22,6 +22,7 @@
 use nalgebra::Vector3;
 use super::physics;
 
+#[derive(Debug)]
 pub enum Corner {
     Tnw,
     Tne,
@@ -51,13 +52,14 @@ pub trait Octree {
     fn bsw(&self) -> &Option<Box<Octree_member>>;
     fn bse(&self) -> &Option<Box<Octree_member>>;
 
-    fn add(&self, b: &physics::Body) -> Octree_member;
+    fn add(&mut self, b: &physics::Body) -> ();
 
     fn within_box(&self, p: &Vector3<f32>) -> bool;
 
     fn fits_in_corner(&self, p: &Vector3<f32>) -> Corner;
 }
 
+#[derive(Debug)]
 pub enum Octree_member {
     Octree_node {
         geometric_center: Vector3<f32>,
@@ -185,238 +187,217 @@ impl Octree for Octree_member {
 		}
     }
 
-    fn add(&self, b: &physics::Body) -> Octree_member {
+    fn add(&mut self, b: &physics::Body) -> () {
+        println!("call add on {:?} ; {:?}", self, b);
+        assert_eq!(self.within_box(&b.coordinates), true);
+        let corner = self.fits_in_corner(&b.coordinates);
+        println!("{:?} fits in {:?}", b, corner);
+
         match self {
             Self::Octree_node {
-                geometric_center,
-                center_of_mass,
-                total_mass,
-                side_length,
-                population,
-                tnw,
-                tne,
-                tsw,
-                tse,
-                bnw,
-                bne,
-                bsw,
-                bse
+                ref geometric_center,
+                ref mut center_of_mass,
+                ref mut total_mass,
+                ref side_length,
+                ref mut population,
+                ref mut tnw,
+                ref mut tne,
+                ref mut tsw,
+                ref mut tse,
+                ref mut bnw,
+                ref mut bne,
+                ref mut bsw,
+                ref mut bse
             } => {
                 if population == &0usize {
-                    let corner = self.fits_in_corner(&b.coordinates);
+                    *center_of_mass = b.coordinates.clone();
+                    *total_mass = b.mass.clone();
+                    *population = 1usize;
+                    
                     match corner {
                         Corner::Tnw => {
-                            return Octree_node {
-                                geometric_center: geometric_center.clone(),
-                                center_of_mass: b.coordinates.clone(),
-                                total_mass: b.mass.clone(),
-                                side_length: side_length.clone(),
-                                population: 1usize,
-                                tnw: Some(Box::new(Octree_leaf {
-                                    body: Some(b.clone()),
-                                    geometric_center: new_geometric_center(geometric_center, side_length, &corner),
-                                    side_length: side_length/&2.0f32
-                                })),
-                                tne: None,
-                                tsw: None,
-                                tse: None,
-                                bnw: None,
-                                bne: None,
-                                bsw: None,
-                                bse: None
-                            }
+                            *tnw = Some(Box::new(Octree_leaf {
+                                body: Some(b.clone()),
+                                geometric_center: new_geometric_center(geometric_center, side_length, &corner),
+                                side_length: side_length/&2.0f32
+                            }))
                         },
                         Corner::Tne => {
-                            return Octree_node {
-                                geometric_center: geometric_center.clone(),
-                                center_of_mass: b.coordinates.clone(),
-                                total_mass: b.mass.clone(),
-                                side_length: side_length.clone(),
-                                population: 1usize,
-                                tne: Some(Box::new(Octree_leaf {
-                                    body: Some(b.clone()),
-                                    geometric_center: new_geometric_center(geometric_center, side_length, &corner),
-                                    side_length: side_length/&2.0f32
-                                })),
-                                tnw: None,
-                                tsw: None,
-                                tse: None,
-                                bnw: None,
-                                bne: None,
-                                bsw: None,
-                                bse: None
-                            }
+                            *tne = Some(Box::new(Octree_leaf {
+                                body: Some(b.clone()),
+                                geometric_center: new_geometric_center(geometric_center, side_length, &corner),
+                                side_length: side_length/&2.0f32
+                            }))
                         },
                         Corner::Tsw => {
-                            return Octree_node {
-                                geometric_center: geometric_center.clone(),
-                                center_of_mass: b.coordinates.clone(),
-                                total_mass: b.mass.clone(),
-                                side_length: side_length.clone(),
-                                population: 1usize,
-                                tsw: Some(Box::new(Octree_leaf {
-                                    body: Some(b.clone()),
-                                    geometric_center: new_geometric_center(geometric_center, side_length, &corner),
-                                    side_length: side_length/&2.0f32
-                                })),
-                                tnw: None,
-                                tse: None,
-                                tne: None,
-                                bnw: None,
-                                bne: None,
-                                bsw: None,
-                                bse: None
-                            }
+                            *tsw = Some(Box::new(Octree_leaf {
+                                body: Some(b.clone()),
+                                geometric_center: new_geometric_center(geometric_center, side_length, &corner),
+                                side_length: side_length/&2.0f32
+                            }))
                         },
                         Corner::Tse => {
-                            return Octree_node {
-                                geometric_center: geometric_center.clone(),
-                                center_of_mass: b.coordinates.clone(),
-                                total_mass: b.mass.clone(),
-                                side_length: side_length.clone(),
-                                population: 1usize,
-                                tse: Some(Box::new(Octree_leaf {
-                                    body: Some(b.clone()),
-                                    geometric_center: new_geometric_center(geometric_center, side_length, &corner),
-                                    side_length: side_length/&2.0f32
-                                })),
-                                tnw: None,
-                                tsw: None,
-                                tne: None,
-                                bnw: None,
-                                bne: None,
-                                bsw: None,
-                                bse: None
-                            }
+                            *tse = Some(Box::new(Octree_leaf {
+                                body: Some(b.clone()),
+                                geometric_center: new_geometric_center(geometric_center, side_length, &corner),
+                                side_length: side_length/&2.0f32
+                            }))
                         },
                         Corner::Bnw => {
-                            return Octree_node {
-                                geometric_center: geometric_center.clone(),
-                                center_of_mass: b.coordinates.clone(),
-                                total_mass: b.mass.clone(),
-                                side_length: side_length.clone(),
-                                population: 1usize,
-                                bnw: Some(Box::new(Octree_leaf {
-                                    body: Some(b.clone()),
-                                    geometric_center: new_geometric_center(geometric_center, side_length, &corner),
-                                    side_length: side_length/&2.0f32
-                                })),
-                                tne: None,
-                                tsw: None,
-                                tse: None,
-                                tnw: None,
-                                bne: None,
-                                bsw: None,
-                                bse: None
-                            }
+                            *bnw = Some(Box::new(Octree_leaf {
+                                body: Some(b.clone()),
+                                geometric_center: new_geometric_center(geometric_center, side_length, &corner),
+                                side_length: side_length/&2.0f32
+                            }))
                         },
                         Corner::Bne => {
-                            return Octree_node {
-                                geometric_center: geometric_center.clone(),
-                                center_of_mass: b.coordinates.clone(),
-                                total_mass: b.mass.clone(),
-                                side_length: side_length.clone(),
-                                population: 1usize,
-                                bne: Some(Box::new(Octree_leaf {
-                                    body: Some(b.clone()),
-                                    geometric_center: new_geometric_center(geometric_center, side_length, &corner),
-                                    side_length: side_length/&2.0f32
-                                })),
-                                tnw: None,
-                                tsw: None,
-                                tse: None,
-                                bnw: None,
-                                tne: None,
-                                bsw: None,
-                                bse: None
-                            }
+                            *bne = Some(Box::new(Octree_leaf {
+                                body: Some(b.clone()),
+                                geometric_center: new_geometric_center(geometric_center, side_length, &corner),
+                                side_length: side_length/&2.0f32
+                            }))
                         },
                         Corner::Bsw => {
-                            return Octree_node {
-                                geometric_center: geometric_center.clone(),
-                                center_of_mass: b.coordinates.clone(),
-                                total_mass: b.mass.clone(),
-                                side_length: side_length.clone(),
-                                population: 1usize,
-                                bsw: Some(Box::new(Octree_leaf {
-                                    body: Some(b.clone()),
-                                    geometric_center: new_geometric_center(geometric_center, side_length, &corner),
-                                    side_length: side_length/&2.0f32
-                                })),
-                                tnw: None,
-                                tse: None,
-                                tne: None,
-                                bnw: None,
-                                bne: None,
-                                tsw: None,
-                                bse: None
-                            }
+                            *bsw = Some(Box::new(Octree_leaf {
+                                body: Some(b.clone()),
+                                geometric_center: new_geometric_center(geometric_center, side_length, &corner),
+                                side_length: side_length/&2.0f32
+                            }))
                         },
                         Corner::Bse => {
-                            return Octree_node {
-                                geometric_center: geometric_center.clone(),
-                                center_of_mass: b.coordinates.clone(),
-                                total_mass: b.mass.clone(),
-                                side_length: side_length.clone(),
-                                population: 1usize,
-                                bse: Some(Box::new(Octree_leaf {
-                                    body: Some(b.clone()),
-                                    geometric_center: new_geometric_center(geometric_center, side_length, &corner),
-                                    side_length: side_length/&2.0f32
-                                })),
-                                tnw: None,
-                                tsw: None,
-                                tne: None,
-                                bnw: None,
-                                bne: None,
-                                bsw: None,
-                                tse: None
-                            }
+                            *bse = Some(Box::new(Octree_leaf {
+                                body: Some(b.clone()),
+                                geometric_center: new_geometric_center(geometric_center, side_length, &corner),
+                                side_length: side_length/&2.0f32
+                            }))
                         }
                     }
                 } else {
-                    let corner = self.fits_in_corner(&b.coordinates);
+                    *center_of_mass = new_center_of_mass(center_of_mass, total_mass, &b.coordinates, &b.mass);
+                    *total_mass = *total_mass + b.mass;
+                    *population = *population + 1usize;
+                    
                     match corner {
                         Corner::Tne => {
-                            return Octree_node {
-                                geometric_center: geometric_center.clone(),
-                                center_of_mass: b.coordinates.clone(),
-                                total_mass: b.mass.clone(),
-                                side_length: side_length.clone(),
-                                population: 1usize,
-                                tne: Some(Box::new(Octree_leaf {
-                                    body: Some(b.clone()),
-                                    geometric_center: new_geometric_center(geometric_center, side_length, &corner),
-                                    side_length: side_length/&2.0f32
-                                })),
-                                tnw: None,
-                                tsw: None,
-                                tse: None,
-                                bnw: None,
-                                bne: None,
-                                bsw: None,
-                                bse: None
+                            match tne {
+                                None => {
+                                    *tne = Some(Box::new(Octree_leaf {
+                                        body: Some(b.clone()),
+                                        geometric_center: new_geometric_center(geometric_center, side_length, &corner),
+                                        side_length: side_length/&2.0f32
+                                    }))
+                                },
+                                Some(ref mut boxed_corner) => boxed_corner.add(b)
+                            }
+                        },
+                        Corner::Tnw => {
+                            match tnw {
+                                None => {
+                                    *tnw = Some(Box::new(Octree_leaf {
+                                        body: Some(b.clone()),
+                                        geometric_center: new_geometric_center(geometric_center, side_length, &corner),
+                                        side_length: side_length/&2.0f32
+                                    }))
+                                },
+                                Some(ref mut boxed_corner) => boxed_corner.add(b)
+                            }
+                        },
+                        Corner::Tsw => {
+                            match tsw {
+                                None => {
+                                    *tsw = Some(Box::new(Octree_leaf {
+                                        body: Some(b.clone()),
+                                        geometric_center: new_geometric_center(geometric_center, side_length, &corner),
+                                        side_length: side_length/&2.0f32
+                                    }))
+                                },
+                                Some(ref mut boxed_corner) => boxed_corner.add(b)
+                            }
+                        },
+                        Corner::Tse => {
+                            match tse {
+                                None => {
+                                    *tse = Some(Box::new(Octree_leaf {
+                                        body: Some(b.clone()),
+                                        geometric_center: new_geometric_center(geometric_center, side_length, &corner),
+                                        side_length: side_length/&2.0f32
+                                    }))
+                                },
+                                Some(ref mut boxed_corner) => boxed_corner.add(b)
+                            }
+                        }
+                        Corner::Bne => {
+                            match bne {
+                                None => {
+                                    *bne = Some(Box::new(Octree_leaf {
+                                        body: Some(b.clone()),
+                                        geometric_center: new_geometric_center(geometric_center, side_length, &corner),
+                                        side_length: side_length/&2.0f32
+                                    }))
+                                },
+                                Some(ref mut boxed_corner) => boxed_corner.add(b)
+                            }
+                        },
+                        Corner::Bnw => {
+                            match bnw {
+                                None => {
+                                    *bnw = Some(Box::new(Octree_leaf {
+                                        body: Some(b.clone()),
+                                        geometric_center: new_geometric_center(geometric_center, side_length, &corner),
+                                        side_length: side_length/&2.0f32
+                                    }))
+                                },
+                                Some(ref mut boxed_corner) => boxed_corner.add(b)
+                            }
+                        },
+                        Corner::Bsw => {
+                            match bsw {
+                                None => {
+                                    *bsw = Some(Box::new(Octree_leaf {
+                                        body: Some(b.clone()),
+                                        geometric_center: new_geometric_center(geometric_center, side_length, &corner),
+                                        side_length: side_length/&2.0f32
+                                    }))
+                                },
+                                Some(ref mut boxed_corner) => boxed_corner.add(b)
+                            }
+                        },
+                        Corner::Bse => {
+                            match bse {
+                                None => {
+                                    *bse = Some(Box::new(Octree_leaf {
+                                        body: Some(b.clone()),
+                                        geometric_center: new_geometric_center(geometric_center, side_length, &corner),
+                                        side_length: side_length/&2.0f32
+                                    }))
+                                },
+                                Some(ref mut boxed_corner) => boxed_corner.add(b)
                             }
                         }
                     }
                 }
-            }
+            },
             Self::Octree_leaf {body, geometric_center, side_length} => {
-                assert_eq!(self.within_box(&b.coordinates), true);
                 match body {
                     None => { 
-                        return Octree_leaf {
+                        *self = Octree_leaf {
                             body: Some(b.clone()),
                             geometric_center: (geometric_center.clone()),
                             side_length: (side_length.clone())
                         } 
+                        // *self.body = Some(b.clone())
                     },
                     Some(o) => {
-                        let mut new_node = Octree_node {
+                        let o = o.clone();
+                        // let body = body.clone();
+                        let geometric_center = geometric_center.clone();
+                        let side_length = side_length.clone();
+
+                        *self = Octree_node {
                             geometric_center: geometric_center.clone(),
                             center_of_mass: geometric_center.clone(),
                             total_mass: 0.0f32,
-                            side_length: side_length/2.0f32,
+                            side_length: side_length,
                             population: 0usize,
                             tnw: None,
                             tne: None,
@@ -428,10 +409,8 @@ impl Octree for Octree_member {
                             bse: None,
                         };
 
-                        new_node = new_node.add(o);
-                        new_node = new_node.add(b);
-
-                        return new_node;
+                        self.add(&o);
+                        self.add(b);
                     }
                 }
             }
@@ -440,6 +419,11 @@ impl Octree for Octree_member {
 
     fn within_box(&self, p: &Vector3<f32>) -> bool {
         let res = |geometric_center: &Vector3<f32>, side_length: &f32| {
+            println!("individual res:");
+            println!("1: {:?}", within_f32(&geometric_center[0], side_length, &p[0]));
+            println!("1: {:?}", within_f32(&geometric_center[1], side_length, &p[1]));
+            println!("1: {:?}", within_f32(&geometric_center[2], side_length, &p[2]));
+
             return within_f32(&geometric_center[0], side_length, &p[0]) &&
                    within_f32(&geometric_center[1], side_length, &p[1]) &&
                    within_f32(&geometric_center[2], side_length, &p[2])
@@ -463,6 +447,13 @@ impl Octree for Octree_member {
                         &(geometric_center[c] + (side_length/&2.0f32)),
                         &p[c])
         };
+        let within_other_half_coord = |geometric_center: &Vector3<f32>,
+                                       side_length: &f32,
+                                       c: usize| {
+            between_f32(&(geometric_center[c] - (side_length/&2.0f32)), 
+                        &geometric_center[c],
+                        &p[c])
+        };
         // within top (+z)
         let within_top = |gc: &Vector3<f32>, sl: &f32| {
             within_half_coord(gc, sl, 2usize)
@@ -475,6 +466,18 @@ impl Octree for Octree_member {
         let within_east = |gc: &Vector3<f32>, sl: &f32| {
             within_half_coord(gc, sl, 0usize)
         };
+        // within bottom (-z)
+        let within_bottom = |gc: &Vector3<f32>, sl: &f32| {
+            within_other_half_coord(gc, sl, 2usize)
+        };
+        // within south (-y)
+        let within_south = |gc: &Vector3<f32>, sl: &f32| {
+            within_other_half_coord(gc, sl, 1usize)
+        };
+        // within west (-x)
+        let within_west = |gc: &Vector3<f32>, sl: &f32| {
+            within_other_half_coord(gc, sl, 0usize)
+        };
         // final result
         let res = |gc: &Vector3<f32>, sl: &f32| {
             // if in the top (z)
@@ -483,27 +486,34 @@ impl Octree for Octree_member {
                     if within_east(gc, sl) {
                         Corner::Tne
                     } else {
+                        assert_eq!(within_west(gc,sl), true);
                         Corner::Tnw
                     }
                 } else {
+                    assert_eq!(within_south(gc,sl), true);
                     if within_east(gc, sl) {
                         Corner::Tse
                     } else {
+                        assert_eq!(within_west(gc,sl), true);
                         Corner::Tsw
                     }
                 }
             } else {
                 // in the bottom (z)
+                assert_eq!(within_bottom(gc,sl), true);
                 if within_north(gc, sl) {
                     if within_east(gc, sl) {
                         Corner::Bne
                     } else {
+                        assert_eq!(within_west(gc,sl), true);
                         Corner::Bnw
                     }
                 } else {
+                    assert_eq!(within_south(gc,sl), true);
                     if within_east(gc, sl) {
                         Corner::Bse
                     } else {
+                        assert_eq!(within_west(gc,sl), true);
                         Corner::Bsw
                     }
                 }
@@ -521,12 +531,17 @@ impl Octree for Octree_member {
 }
 
 fn within_f32(c: &f32, sl: &f32, p: &f32) -> bool {
+    println!("within_f32_a: {:?} {:?} {:?}", c, sl, p);
     let by: &f32 = &(sl/&2.0f32);
-    return &(c - by) < p && p < &(c + by)
+    println!("within_f32_b: {:?} < {:?} <= {:?}", &(c - by), p, &(c + by));
+    println!("within_f32_c: {:?} {:?} {:?}", by, &(c - by) < p, p <= &(c + by));
+    return &(c - by) < p && p <= &(c + by)
 }
 
 fn between_f32(min: &f32, max: &f32, p: &f32) -> bool {
-    return min < p && p < max
+    assert_eq!(min < max, true);
+    println!("between_f32_a: {:?} < {:?} <= {:?}", min, p, max);
+    return min < p && p <= max
 }
 
 fn new_geometric_center(ogc: &Vector3<f32>, 
@@ -619,7 +634,15 @@ fn new_geometric_center(ogc: &Vector3<f32>,
     }
 }
 
-fn new_center_of_mass(x1: &Vector3<f32>, m1: &f32, x2: &Vector3<f32>, m2: &f32)
+fn new_center_of_mass(x1: &Vector3<f32>, m1: &f32, x2: &Vector3<f32>, m2: &f32) -> Vector3<f32> {
+    let m = m1 + m2;
+    let op = |c: usize| (x1[c] * m1 + x2[c] * m2) / m;
+    Vector3::new(
+        op(0usize),
+        op(1usize),
+        op(2usize)
+    )
+}
 
 fn bounding_box_with_center(objects: &Vec<physics::Body>) -> (Vector3<f32>, Vector3<f32>, Vector3<f32>) {
     assert_ne!(objects.len(), 0usize);
@@ -630,7 +653,8 @@ fn bounding_box_with_center(objects: &Vec<physics::Body>) -> (Vector3<f32>, Vect
     let mut max_y: f32 = objects[0].coordinates[1];
     let mut max_z: f32 = objects[0].coordinates[2];
     
-    for &obj in objects {
+    for ref obj in objects {
+        println!("Helper {:?}", obj);
         if obj.coordinates[0] < min_x {
             min_x = obj.coordinates[0];
         }
@@ -641,13 +665,13 @@ fn bounding_box_with_center(objects: &Vec<physics::Body>) -> (Vector3<f32>, Vect
             min_z = obj.coordinates[2];
         }
 
-        if obj.coordinates[0] < max_x {
+        if obj.coordinates[0] > max_x {
             max_x = obj.coordinates[0];
         }
-        if obj.coordinates[1] < max_y {
+        if obj.coordinates[1] > max_y {
             max_y = obj.coordinates[1];
         }
-        if obj.coordinates[2] < max_z {
+        if obj.coordinates[2] > max_z {
             max_z = obj.coordinates[2];
         }
     }
@@ -663,9 +687,12 @@ fn bounding_box_with_center(objects: &Vec<physics::Body>) -> (Vector3<f32>, Vect
 }
 
 fn bounding_box_center(min: &Vector3<f32>, max: &Vector3<f32>) -> Vector3<f32> {
-    let x: f32 = (max[0] - min[0]) / 2.0f32;
-    let y: f32 = (max[1] - min[1]) / 2.0f32;
-    let z: f32 = (max[2] - min[2]) / 2.0f32;
+    let x: f32 = min[0] + (max[0] - min[0]) / 2.0f32;
+    let y: f32 = min[1] + (max[1] - min[1]) / 2.0f32;
+    let z: f32 = min[2] + (max[2] - min[2]) / 2.0f32;
+    // println!("x {:?} x {:?} x {:?}", x, y, z);
+    // println!("max[0] {:?} min[0] {:?} max-min {:?} /2 {:?}", max[0], min[0], max[0] - min[0], x);
+    // println!("x {:?} x {:?} x {:?}", x, y, z);
     Vector3::new(x,y,z)
 }
 
@@ -693,17 +720,27 @@ pub fn create_octree_sequential(
     objects: &Vec<physics::Body>
 ) -> Box<Octree_member> {
     let (start_bsw, start_tne, start_center) = bounding_box_with_center(objects);
-    let start_side_len = min_cube_side_len(&start_bsw, &start_tne);
+    println!("Helper says {:?} {:?} {:?}", start_bsw, start_tne, start_center);
+    let start_side_len = min_cube_side_len(&start_bsw, &start_tne) + 0.2f32;
+    let center = Vector3::new(
+        start_bsw[0] - 0.1f32 + start_side_len / 2.0f32,
+        start_bsw[1] - 0.1f32 + start_side_len / 2.0f32,
+        start_bsw[2] - 0.1f32 + start_side_len / 2.0f32,
+    );
 
-    let mut root_node = Octree_member::Octree_leaf {
+    let mut root_node = Box::new(Octree_member::Octree_leaf {
         body: None,
-        geometric_center: start_center,
+        geometric_center: center,
         side_length: start_side_len
-    };
+    });
 
-    // for &obj in objects {
-    //     let mut node = 
-        
-    //     obj.
-    // }
+    println!("Starting at basic tree {:?}", root_node);
+    
+    for ref obj in objects {
+        println!("Adding {:?}", obj);
+        root_node.add(&obj);
+        println!("New tree: {:?}", root_node);
+    }
+
+    return root_node;
 }

@@ -230,6 +230,9 @@ fn main() {
     }
     let num_objects : usize = objects.len();
 
+    let octree = octree::create_octree_sequential(&objects);
+    println!("Octree: {:?}", octree);
+
     println!("Created {} objects.", num_objects);
     println!("Using {} threads.", N_THREADS);
 
