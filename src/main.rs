@@ -16,6 +16,7 @@ use std::io::Read;
 
 // mod thread_manager;
 mod physics;
+mod octree;
 
 //Number of WORKER threads: Must be more than 0
 static N_THREADS: usize = 7;

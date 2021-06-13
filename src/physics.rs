@@ -11,7 +11,7 @@ pub struct tmpBody {
     pub velocity: [f32; 3]
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Body {
     pub mass: f32,
     pub coordinates: Vector3<f32>,
