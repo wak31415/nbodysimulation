@@ -108,10 +108,11 @@ pub fn thread_loop_main(
     // Main thread by convention does the 1st block because we don't want it to
     // Be handling the extra at the tail, since its already drawing alone
     // compute all n^2 forces
-    //let draw_interval = Duration::from_millis(((1f32 / FPS) * 1000f32) as u64);
+    let draw_interval = Duration::from_millis(((1f32 / FPS) * 1000f32) as u64);
     //let mut t_0 = Instant::now();
     let mut stage = false; //false = writing forces, true = writing positions
     let mut stop_count = 0;
+    let mut t_0 = Instant::now();
     let mut total = Duration::from_secs(0u64);
     let mut counter : usize = 0;
 
@@ -119,7 +120,10 @@ pub fn thread_loop_main(
         let t_1 = Instant::now();
         if !stage {
             let mut force_mat = forces.write().unwrap();
-            window.render();
+            if t_1.duration_since(t_0) > draw_interval {
+                t_0 = t_1;
+                window.render();
+            }
             loop {
                 if stop_count == N_THREADS {
                     stop_count = 0;
@@ -129,7 +133,10 @@ pub fn thread_loop_main(
                 //Receive force messages until stop_count hits N_THREADS
                 let new_msg = rx.recv().unwrap();
                 match new_msg {
-                    Msg::Force(i, j, f) => { force_mat[(i, j)] = f; force_mat[(j, i)] = -f; },
+                    Msg::Force(i, j, f) => { 
+                        force_mat[(i, j)] = f; 
+                        force_mat[(j, i)] = -f; 
+                    },
                     Msg::Pos(_, _, _) => println!("Oh no, got pos while waiting for force!"),
                     Msg::Stop => stop_count += 1
                 };
@@ -167,7 +174,7 @@ pub fn thread_loop_main(
             total += t_3.duration_since(t_1);
             counter += 1;
         } else {
-            println!("Total: {} ms \t FPS: {}", total.as_millis(), 100f32 / total.as_secs_f32());
+            println!("{} updates per second", 100f32 / total.as_secs_f32());
             // block_1 = Duration::from_millis(0u64);
             // block_2 = Duration::from_millis(0u64);
             total = Duration::from_millis(0u64);
@@ -237,7 +244,7 @@ fn main() {
 
     let mut bodies: Vec<SceneNode> = Vec::with_capacity(num_objects);
     for obj in &objects {
-        let mut s = window.add_sphere((obj.mass.powf(1f32/3f32) / 50f32) as f32);
+        let mut s = window.add_sphere((obj.mass.powf(1f32/3f32) / 300f32) as f32);
         s.set_local_transformation(Isometry3::new(
             obj.coordinates,
             Vector3::new(0f32, 0f32, 0f32),
